@@ -1,19 +1,17 @@
 /**
- * yr-weather-graph-card  v2.1
+ * yr-weather-graph-card  v2.2
  * Custom Lovelace card dla Home Assistant
  * Dane pogodowe : api.met.no Locationforecast 2.0
  * Geocoding     : Nominatim (OpenStreetMap) – bez klucza API
  *
  * Instalacja:
- *   1. Skopiuj do /config/www/yr-weather-graph-card.js
- *   2. Zasoby → Dodaj: /local/yr-weather-graph-card.js  (JavaScript Module)
- *   3. Karta YAML:
- *        type: custom:yr-weather-graph-card
- *        location_name: "Brzeziny"
- *        lat: 51.8018
- *        lon: 19.7515
- *        hours: 72
- *        refresh_interval: 1800
+ *   type: custom:yr-weather-graph-card
+ *   location_name: "Brzeziny"
+ *   lat: 51.8018
+ *   lon: 19.7515
+ *   hours: 72
+ *   refresh_interval: 1800
+ *   theme: dark        # dark (domyślny) lub light
  */
 
 // ═══════════════════════════════════════════════════════════
@@ -21,7 +19,7 @@
 // ═══════════════════════════════════════════════════════════
 const MET_API       = 'https://api.met.no/weatherapi/locationforecast/2.0/compact';
 const NOMINATIM_API = 'https://nominatim.openstreetmap.org/search';
-const UA            = 'HomeAssistant/YrWeatherGraphCard/2.1';
+const UA            = 'HomeAssistant/YrWeatherGraphCard/2.2';
 
 const SYMBOL_MAP = {
   clearsky:'☀️', fair:'🌤️', partlycloudy:'⛅', cloudy:'☁️', fog:'🌫️',
@@ -41,9 +39,83 @@ function windDir(deg) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// DEFINICJE MOTYWÓW
+// ═══════════════════════════════════════════════════════════
+
+// Kolory SVG (nie można zastąpić CSS vars wewnątrz SVG attr)
+const GRAPH_THEME = {
+  dark: {
+    bg1: '#0f172a', bg2: '#1e293b',
+    tempLine: '#fbbf24', tempFill: '#fbbf24',
+    fillOp0: '0.35', fillOp1: '0.03',
+    tempLabel: '#fde68a',
+    precipBar: 'rgba(99,179,237,0.65)',
+    axisText: 'rgba(200,220,255,0.7)',
+    gridDay: 'rgba(255,255,255,0.18)', gridHour: 'rgba(255,255,255,0.06)',
+    gridH: 'rgba(255,255,255,0.07)',
+    xDay: '#93c5fd', xHour: 'rgba(180,200,230,0.7)',
+    legend: 'rgba(180,200,230,0.7)',
+  },
+  light: {
+    bg1: '#f1f5f9', bg2: '#e8edf5',
+    tempLine: '#d97706', tempFill: '#f59e0b',
+    fillOp0: '0.28', fillOp1: '0.02',
+    tempLabel: '#92400e',
+    precipBar: 'rgba(37,99,235,0.5)',
+    axisText: 'rgba(30,41,59,0.6)',
+    gridDay: 'rgba(0,0,0,0.12)', gridHour: 'rgba(0,0,0,0.05)',
+    gridH: 'rgba(0,0,0,0.06)',
+    xDay: '#1d4ed8', xHour: 'rgba(71,85,105,0.75)',
+    legend: 'rgba(71,85,105,0.8)',
+  },
+};
+
+// CSS custom properties wstrzykiwane do :host
+const THEME_VARS = {
+  dark: `
+    --c-bg:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);
+    --c-text:#e2e8f0; --c-text2:#94a3b8; --c-text3:#475569;
+    --c-name:#f1f5f9; --c-temp:#fde68a; --c-tmin:#93c5fd;
+    --c-blue:#93c5fd; --c-blue2:rgba(99,179,237,.7);
+    --c-rain:#63b3ed; --c-rain2:#3b82f6; --c-dry:#334155;
+    --c-hum:#7dd3fc; --c-border:rgba(255,255,255,.07);
+    --c-border2:rgba(255,255,255,.06); --c-shadow:rgba(0,0,0,.45);
+    --c-head-bg:rgba(255,255,255,.025); --c-head-hover:rgba(255,255,255,.055);
+    --c-rain-border:rgba(99,179,237,.7); --c-body-bg:rgba(0,0,0,.15);
+    --c-row-border:rgba(255,255,255,.04); --c-bar-bg:rgba(255,255,255,.07);
+    --c-rain-empty:rgba(148,163,184,.3); --c-footer:rgba(148,163,184,.6);
+    --c-footer-border:rgba(255,255,255,.05); --c-link:rgba(99,179,237,.7);
+    --c-btn-hover:rgba(255,255,255,.06); --c-sep:#475569;
+    --c-spin1:#1e40af; --c-spin2:#93c5fd;
+    --c-detail-border:rgba(255,255,255,.05); --c-detail-title:#475569;
+    --c-hh-border:#3b82f6; --c-row-rainy:rgba(59,130,246,.08);
+    --c-row-heavy:rgba(59,130,246,.18);
+  `,
+  light: `
+    --c-bg:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);
+    --c-text:#1e293b; --c-text2:#64748b; --c-text3:#94a3b8;
+    --c-name:#0f172a; --c-temp:#d97706; --c-tmin:#2563eb;
+    --c-blue:#2563eb; --c-blue2:rgba(37,99,235,.8);
+    --c-rain:#1d4ed8; --c-rain2:#2563eb; --c-dry:#cbd5e1;
+    --c-hum:#1d4ed8; --c-border:rgba(0,0,0,.1);
+    --c-border2:rgba(0,0,0,.08); --c-shadow:rgba(0,0,0,.12);
+    --c-head-bg:rgba(0,0,0,.02); --c-head-hover:rgba(0,0,0,.05);
+    --c-rain-border:rgba(37,99,235,.7); --c-body-bg:rgba(0,0,0,.03);
+    --c-row-border:rgba(0,0,0,.05); --c-bar-bg:rgba(0,0,0,.08);
+    --c-rain-empty:rgba(148,163,184,.5); --c-footer:rgba(100,116,139,.7);
+    --c-footer-border:rgba(0,0,0,.08); --c-link:#2563eb;
+    --c-btn-hover:rgba(0,0,0,.06); --c-sep:#94a3b8;
+    --c-spin1:#bfdbfe; --c-spin2:#3b82f6;
+    --c-detail-border:rgba(0,0,0,.07); --c-detail-title:#94a3b8;
+    --c-hh-border:#2563eb; --c-row-rainy:rgba(59,130,246,.07);
+    --c-row-heavy:rgba(59,130,246,.16);
+  `,
+};
+
+// ═══════════════════════════════════════════════════════════
 // SVG GRAF
 // ═══════════════════════════════════════════════════════════
-function buildGraph(hourlyData) {
+function buildGraph(hourlyData, gt) {
   const W = 900, H = 320;
   const PAD = { top: 55, right: 20, bottom: 60, left: 42 };
   const GW = W - PAD.left - PAD.right;
@@ -71,7 +143,7 @@ function buildGraph(hourlyData) {
   const bars = hourlyData.map((d,i) => {
     if (d.precip <= 0) return '';
     const bh = (d.precip / pMax) * (GH * 0.35);
-    return `<rect x="${(xS(i)-bw/2).toFixed(1)}" y="${(PAD.top+GH-bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" fill="rgba(99,179,237,0.65)" rx="1"/>`;
+    return `<rect x="${(xS(i)-bw/2).toFixed(1)}" y="${(PAD.top+GH-bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" fill="${gt.precipBar}" rx="1"/>`;
   }).join('');
 
   let xLabels='', icons='', gridLines='';
@@ -83,8 +155,8 @@ function buildGraph(hourlyData) {
       const lbl = newDay
         ? d.time.toLocaleDateString('pl-PL', { weekday:'short', day:'numeric', month:'numeric' })
         : `${String(h).padStart(2,'0')}:00`;
-      gridLines += `<line x1="${x.toFixed(1)}" y1="${PAD.top}" x2="${x.toFixed(1)}" y2="${(PAD.top+GH).toFixed(1)}" stroke="${newDay?'rgba(255,255,255,0.18)':'rgba(255,255,255,0.06)'}" stroke-width="${newDay?1.5:0.5}"/>`;
-      xLabels   += `<text x="${x.toFixed(1)}" y="${(PAD.top+GH+16).toFixed(1)}" text-anchor="middle" font-size="${newDay?10:9}" fill="${newDay?'#93c5fd':'rgba(180,200,230,0.7)'}" font-weight="${newDay?'600':'400'}">${lbl}</text>`;
+      gridLines += `<line x1="${x.toFixed(1)}" y1="${PAD.top}" x2="${x.toFixed(1)}" y2="${(PAD.top+GH).toFixed(1)}" stroke="${newDay?gt.gridDay:gt.gridHour}" stroke-width="${newDay?1.5:0.5}"/>`;
+      xLabels   += `<text x="${x.toFixed(1)}" y="${(PAD.top+GH+16).toFixed(1)}" text-anchor="middle" font-size="${newDay?10:9}" fill="${newDay?gt.xDay:gt.xHour}" font-weight="${newDay?'600':'400'}">${lbl}</text>`;
     }
     if (i % 3 === 0 && d.symbol)
       icons += `<text x="${x.toFixed(1)}" y="${(PAD.top-8).toFixed(1)}" text-anchor="middle" font-size="14">${symEmoji(d.symbol)}</text>`;
@@ -93,24 +165,24 @@ function buildGraph(hourlyData) {
   const tTicks = [];
   for (let t = Math.ceil(tMin); t <= tMax; t++) if (t % 5 === 0) tTicks.push(t);
   const yAxis = tTicks.map(t =>
-    `<text x="${(PAD.left-6).toFixed(1)}" y="${(yT(t)+4).toFixed(1)}" text-anchor="end" font-size="9" fill="rgba(200,220,255,0.7)">${t}°</text>
-     <line x1="${PAD.left}" y1="${yT(t).toFixed(1)}" x2="${(PAD.left+GW).toFixed(1)}" y2="${yT(t).toFixed(1)}" stroke="rgba(255,255,255,0.07)" stroke-width="0.5" stroke-dasharray="3,3"/>`
+    `<text x="${(PAD.left-6).toFixed(1)}" y="${(yT(t)+4).toFixed(1)}" text-anchor="end" font-size="9" fill="${gt.axisText}">${t}°</text>
+     <line x1="${PAD.left}" y1="${yT(t).toFixed(1)}" x2="${(PAD.left+GW).toFixed(1)}" y2="${yT(t).toFixed(1)}" stroke="${gt.gridH}" stroke-width="0.5" stroke-dasharray="3,3"/>`
   ).join('');
 
   const tLabels = hourlyData.map((d,i) => {
     if (i % 3 !== 0) return '';
-    return `<text x="${xS(i).toFixed(1)}" y="${(yT(d.temp)-7).toFixed(1)}" text-anchor="middle" font-size="9" fill="#fde68a" font-weight="600">${Math.round(d.temp)}°</text>`;
+    return `<text x="${xS(i).toFixed(1)}" y="${(yT(d.temp)-7).toFixed(1)}" text-anchor="middle" font-size="9" fill="${gt.tempLabel}" font-weight="600">${Math.round(d.temp)}°</text>`;
   }).join('');
 
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;">
   <defs>
     <linearGradient id="tg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#fbbf24" stop-opacity="0.35"/>
-      <stop offset="100%" stop-color="#fbbf24" stop-opacity="0.03"/>
+      <stop offset="0%"   stop-color="${gt.tempFill}" stop-opacity="${gt.fillOp0}"/>
+      <stop offset="100%" stop-color="${gt.tempFill}" stop-opacity="${gt.fillOp1}"/>
     </linearGradient>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#0f172a"/>
-      <stop offset="100%" stop-color="#1e293b"/>
+      <stop offset="0%"   stop-color="${gt.bg1}"/>
+      <stop offset="100%" stop-color="${gt.bg2}"/>
     </linearGradient>
     <clipPath id="gc"><rect x="${PAD.left}" y="${PAD.top}" width="${GW}" height="${GH}"/></clipPath>
   </defs>
@@ -119,14 +191,14 @@ function buildGraph(hourlyData) {
   ${yAxis}
   ${gridLines}
   <g clip-path="url(#gc)">${bars}</g>
-  <polyline points="${tempLine}" fill="none" stroke="#fbbf24" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" clip-path="url(#gc)"/>
+  <polyline points="${tempLine}" fill="none" stroke="${gt.tempLine}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" clip-path="url(#gc)"/>
   <g clip-path="url(#gc)">${tLabels}</g>
   ${icons}
   ${xLabels}
-  <rect x="${PAD.left}" y="${H-14}" width="10" height="8" fill="rgba(99,179,237,0.65)" rx="1"/>
-  <text x="${PAD.left+14}" y="${H-7}" font-size="8" fill="rgba(180,200,230,0.7)">Opady (mm)</text>
-  <rect x="${PAD.left+90}" y="${H-14}" width="18" height="2.5" fill="#fbbf24" rx="1"/>
-  <text x="${PAD.left+112}" y="${H-7}" font-size="8" fill="rgba(180,200,230,0.7)">Temperatura (°C)</text>
+  <rect x="${PAD.left}" y="${H-14}" width="10" height="8" fill="${gt.precipBar}" rx="1"/>
+  <text x="${PAD.left+14}" y="${H-7}" font-size="8" fill="${gt.legend}">Opady (mm)</text>
+  <rect x="${PAD.left+90}" y="${H-14}" width="18" height="2.5" fill="${gt.tempLine}" rx="1"/>
+  <text x="${PAD.left+112}" y="${H-7}" font-size="8" fill="${gt.legend}">Temperatura (°C)</text>
 </svg>`;
 }
 
@@ -134,39 +206,32 @@ function buildGraph(hourlyData) {
 // PODZIAŁ DZIENNY / GODZINOWY
 // ═══════════════════════════════════════════════════════════
 function buildDailyDetail(hourlyData, expandedDays) {
-  // Grupuj dane po dniach
   const days = [];
   let curKey = null;
   for (const d of hourlyData) {
     const key = d.time.toDateString();
-    if (key !== curKey) {
-      days.push({ date: d.time, hours: [] });
-      curKey = key;
-    }
+    if (key !== curKey) { days.push({ date: d.time, hours: [] }); curKey = key; }
     days[days.length - 1].hours.push(d);
   }
 
-  // Skala słupków opadu: 10 mm = pełny słupek
-  const BAR_MAX = 10;
+  const BAR_MAX = 10; // 10 mm = pełny słupek
 
   return days.map((day, dayIdx) => {
-    const temps    = day.hours.map(h => h.temp).filter(t => t != null);
-    const tMin     = Math.min(...temps);
-    const tMax     = Math.max(...temps);
+    const temps     = day.hours.map(h => h.temp).filter(t => t != null);
+    const tMin      = Math.min(...temps);
+    const tMax      = Math.max(...temps);
     const totalRain = day.hours.reduce((s, h) => s + (h.precip || 0), 0);
     const rainHours = day.hours.filter(h => h.precip > 0).length;
-    const hasRain  = totalRain > 0;
+    const hasRain   = totalRain > 0;
 
-    // Dominujący symbol pogodowy
     const symCount = {};
     for (const h of day.hours) if (h.symbol) symCount[h.symbol] = (symCount[h.symbol] || 0) + 1;
     const mainSym = Object.keys(symCount).sort((a,b) => symCount[b]-symCount[a])[0] ?? null;
 
-    const isToday  = day.date.toDateString() === new Date().toDateString();
-    const dateStr  = day.date.toLocaleDateString('pl-PL', { weekday:'long', day:'numeric', month:'short' });
-    const isOpen   = expandedDays.has(dayIdx);
+    const isToday = day.date.toDateString() === new Date().toDateString();
+    const dateStr = day.date.toLocaleDateString('pl-PL', { weekday:'long', day:'numeric', month:'short' });
+    const isOpen  = expandedDays.has(dayIdx);
 
-    // Nagłówek dnia
     const rainSummary = hasRain
       ? `<span class="d-rain">${totalRain.toFixed(1)} mm · ${rainHours}h</span>`
       : `<span class="d-dry">bez opadów</span>`;
@@ -178,14 +243,15 @@ function buildDailyDetail(hourlyData, expandedDays) {
         <div class="d-info">
           <span class="d-name">${isToday ? '<b>Dziś</b>, ' : ''}${dateStr}</span>
           <div class="d-meta">
-            <span class="d-temps"><span class="tmax">${Math.round(tMax)}°</span> / <span class="tmin">${Math.round(tMin)}°</span></span>
+            <span class="d-temps">
+              <span class="tmax">${Math.round(tMax)}°</span><span class="sep"> / </span><span class="tmin">${Math.round(tMin)}°</span>
+            </span>
             ${rainSummary}
           </div>
         </div>
         ${hasRain ? `<span class="d-rain-badge">🌧</span>` : ''}
       </div>`;
 
-    // Wiersze godzinowe
     const hourRows = isOpen ? day.hours.map(h => {
       const timeStr  = `${String(h.time.getHours()).padStart(2,'0')}:00`;
       const barPct   = Math.min(100, ((h.precip || 0) / BAR_MAX) * 100).toFixed(1);
@@ -218,101 +284,92 @@ function buildDailyDetail(hourlyData, expandedDays) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// SHARED CSS
+// CSS (używa CSS custom properties z motywu)
 // ═══════════════════════════════════════════════════════════
 const BASE_CSS = `
   :host { display:block; font-family:'Segoe UI',system-ui,sans-serif; }
   * { box-sizing:border-box; }
   .card {
-    background: linear-gradient(135deg,#0f172a 0%,#1e293b 100%);
-    border-radius:14px; overflow:hidden; color:#e2e8f0;
-    box-shadow:0 4px 24px rgba(0,0,0,.45);
+    background: var(--c-bg);
+    border-radius:14px; overflow:hidden; color:var(--c-text);
+    box-shadow:0 4px 24px var(--c-shadow);
   }
   .header {
     display:flex; justify-content:space-between; align-items:center;
     padding:14px 18px 10px;
-    border-bottom:1px solid rgba(255,255,255,.07);
+    border-bottom:1px solid var(--c-border);
   }
   .location   { display:flex; align-items:center; gap:10px; }
   .loc-icon   { font-size:2.4em; line-height:1; }
-  .loc-name   { font-size:1.15em; font-weight:700; color:#f1f5f9; }
-  .loc-sub    { font-size:.72em; color:#94a3b8; margin-top:1px; }
+  .loc-name   { font-size:1.15em; font-weight:700; color:var(--c-name); }
+  .loc-sub    { font-size:.72em; color:var(--c-text2); margin-top:1px; }
   .cur-stats  { text-align:right; }
-  .temp-big   { font-size:2.2em; font-weight:800; color:#fde68a; line-height:1; }
+  .temp-big   { font-size:2.2em; font-weight:800; color:var(--c-temp); line-height:1; }
   .deg        { font-size:.55em; font-weight:400; vertical-align:super; }
-  .meta-row   { display:flex; gap:10px; justify-content:flex-end; font-size:.75em; color:#93c5fd; margin-top:3px; flex-wrap:wrap; }
+  .meta-row   { display:flex; gap:10px; justify-content:flex-end; font-size:.75em; color:var(--c-blue); margin-top:3px; flex-wrap:wrap; }
   .graph-wrap { padding:6px 8px 2px; }
 
   /* ── Sekcja dzienna ── */
   .detail-section { padding:4px 8px 10px; }
   .detail-title {
     font-size:.65em; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
-    color:#475569; padding:6px 4px 4px; border-bottom:1px solid rgba(255,255,255,.05);
-    margin-bottom:6px;
+    color:var(--c-detail-title); padding:6px 4px 4px;
+    border-bottom:1px solid var(--c-detail-border); margin-bottom:6px;
   }
-  .d-group { margin-bottom:4px; border-radius:10px; overflow:hidden; border:1px solid rgba(255,255,255,.06); }
-
-  /* Nagłówek dnia */
+  .d-group { margin-bottom:4px; border-radius:10px; overflow:hidden; border:1px solid var(--c-border2); }
   .d-head {
-    display:flex; align-items:center; gap:10px;
-    padding:9px 14px; cursor:pointer; user-select:none;
-    background:rgba(255,255,255,.025); transition:background .15s;
+    display:flex; align-items:center; gap:10px; padding:9px 14px;
+    cursor:pointer; user-select:none; background:var(--c-head-bg); transition:background .15s;
   }
-  .d-head:hover { background:rgba(255,255,255,.055); }
-  .d-head--rain { border-left:3px solid rgba(99,179,237,.7); }
-  .d-chevron { font-size:.6em; color:#475569; transition:transform .2s; display:inline-block; width:10px; }
+  .d-head:hover { background:var(--c-head-hover); }
+  .d-head--rain { border-left:3px solid var(--c-rain-border); }
+  .d-chevron { font-size:.6em; color:var(--c-text3); transition:transform .2s; display:inline-block; width:10px; }
   .d-chevron.open { transform:rotate(90deg); }
   .d-icon  { font-size:1.4em; }
   .d-info  { flex:1; min-width:0; }
-  .d-name  { font-size:.85em; color:#f1f5f9; }
+  .d-name  { font-size:.85em; color:var(--c-name); }
   .d-meta  { display:flex; gap:12px; flex-wrap:wrap; margin-top:1px; }
-  .d-temps { font-size:.78em; color:#94a3b8; }
-  .tmax    { color:#fde68a; font-weight:700; }
-  .tmin    { color:#93c5fd; }
-  .d-rain  { font-size:.78em; font-weight:700; color:#63b3ed; }
-  .d-dry   { font-size:.78em; color:#334155; }
+  .d-temps { font-size:.78em; }
+  .tmax    { color:var(--c-temp); font-weight:700; }
+  .tmin    { color:var(--c-tmin); }
+  .sep     { color:var(--c-sep); }
+  .d-rain  { font-size:.78em; font-weight:700; color:var(--c-rain); }
+  .d-dry   { font-size:.78em; color:var(--c-dry); }
   .d-rain-badge { font-size:1.1em; margin-left:auto; }
-
-  /* Wiersze godzinowe */
-  .d-body { background:rgba(0,0,0,.15); }
+  .d-body  { background:var(--c-body-bg); }
   .h-row {
-    display:grid;
-    grid-template-columns: 44px 26px 38px 1fr 90px 42px;
-    align-items:center; gap:6px;
-    padding:5px 14px;
-    border-top:1px solid rgba(255,255,255,.04);
-    font-size:.78em;
+    display:grid; grid-template-columns:44px 26px 38px 1fr 90px 42px;
+    align-items:center; gap:6px; padding:5px 14px;
+    border-top:1px solid var(--c-row-border); font-size:.78em;
   }
-  .h-row.rainy { background:rgba(59,130,246,.08); }
-  .h-row.heavy { background:rgba(59,130,246,.18); border-left:2px solid #3b82f6; }
-  .h-time { color:#475569; font-variant-numeric:tabular-nums; }
+  .h-row.rainy { background:var(--c-row-rainy); }
+  .h-row.heavy { background:var(--c-row-heavy); border-left:2px solid var(--c-hh-border); }
+  .h-time { color:var(--c-text3); font-variant-numeric:tabular-nums; }
   .h-icon { text-align:center; }
-  .h-temp { color:#fde68a; font-weight:700; text-align:right; }
-  .h-wind { color:#94a3b8; text-align:right; }
+  .h-temp { color:var(--c-temp); font-weight:700; text-align:right; }
+  .h-wind { color:var(--c-text2); text-align:right; }
   .h-wind small { font-size:.85em; }
-  .h-hum  { color:#7dd3fc; font-size:.82em; text-align:right; }
-
-  /* Komórka opadów */
+  .h-hum  { color:var(--c-hum); font-size:.82em; text-align:right; }
   .rain-cell   { display:flex; align-items:center; gap:6px; }
-  .rain-bar-bg { flex:1; height:5px; background:rgba(255,255,255,.07); border-radius:3px; overflow:hidden; min-width:30px; }
+  .rain-bar-bg { flex:1; height:5px; background:var(--c-bar-bg); border-radius:3px; overflow:hidden; min-width:30px; }
   .rain-bar-fill       { height:100%; border-radius:3px; background:linear-gradient(90deg,#2563eb,#63b3ed); }
   .rain-bar-fill.heavy { background:linear-gradient(90deg,#1d4ed8,#38bdf8); }
-  .rain-val   { color:#63b3ed; font-weight:700; white-space:nowrap; min-width:42px; text-align:right; }
-  .rain-val small { font-weight:400; color:#3b82f6; }
-  .rain-empty { color:rgba(148,163,184,.3); min-width:42px; text-align:right; }
+  .rain-val   { color:var(--c-rain); font-weight:700; white-space:nowrap; min-width:42px; text-align:right; }
+  .rain-val small { font-weight:400; color:var(--c-rain2); }
+  .rain-empty { color:var(--c-rain-empty); min-width:42px; text-align:right; }
 
   .footer {
-    padding:4px 14px 8px; font-size:.65em; color:rgba(148,163,184,.6);
+    padding:4px 14px 8px; font-size:.65em; color:var(--c-footer);
     display:flex; justify-content:space-between; align-items:center;
-    border-top:1px solid rgba(255,255,255,.05);
+    border-top:1px solid var(--c-footer-border);
   }
-  .footer a   { color:rgba(99,179,237,.7); text-decoration:none; }
-  .loading    { display:flex; align-items:center; justify-content:center; gap:10px; height:160px; color:#64748b; font-size:.85em; }
-  .spinner    { width:20px; height:20px; border:2px solid #1e40af; border-top-color:#93c5fd; border-radius:50%; animation:spin .8s linear infinite; }
+  .footer a   { color:var(--c-link); text-decoration:none; }
+  .loading    { display:flex; align-items:center; justify-content:center; gap:10px; height:160px; color:var(--c-text2); font-size:.85em; }
+  .spinner    { width:20px; height:20px; border:2px solid var(--c-spin1); border-top-color:var(--c-spin2); border-radius:50%; animation:spin .8s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
   .error      { display:flex; align-items:center; justify-content:center; height:120px; color:#f87171; font-size:.85em; }
-  .icon-btn   { background:none; border:none; cursor:pointer; color:rgba(99,179,237,.7); font-size:.8em; padding:2px 4px; border-radius:4px; }
-  .icon-btn:hover { color:#93c5fd; background:rgba(255,255,255,.06); }
+  .icon-btn   { background:none; border:none; cursor:pointer; color:var(--c-blue2); font-size:.8em; padding:2px 4px; border-radius:4px; }
+  .icon-btn:hover { color:var(--c-blue); background:var(--c-btn-hover); }
 `;
 
 // ═══════════════════════════════════════════════════════════
@@ -327,7 +384,7 @@ class YrWeatherGraphCard extends HTMLElement {
     this._loading      = false;
     this._lastFetch    = 0;
     this._timer        = null;
-    this._expandedDays = new Set([0]); // dziś domyślnie rozwinięty
+    this._expandedDays = new Set([0]);
   }
 
   setConfig(cfg) {
@@ -337,6 +394,7 @@ class YrWeatherGraphCard extends HTMLElement {
       location_name:    cfg.location_name    ?? 'Brzeziny',
       hours:            Math.min(cfg.hours   ?? 72, 90),
       refresh_interval: cfg.refresh_interval ?? 1800,
+      theme:            cfg.theme === 'light' ? 'light' : 'dark',
     };
     this._render();
     this._scheduleRefresh();
@@ -396,9 +454,11 @@ class YrWeatherGraphCard extends HTMLElement {
   }
 
   _render() {
-    const sh  = this.shadowRoot;
-    const cur = this._data?.[0] ?? null;
-    const now = new Date();
+    const sh    = this.shadowRoot;
+    const theme = this._config.theme || 'dark';
+    const gt    = GRAPH_THEME[theme];
+    const cur   = this._data?.[0] ?? null;
+    const now   = new Date();
     const fetchTime = this._lastFetch
       ? new Date(this._lastFetch).toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'})
       : '—';
@@ -425,7 +485,7 @@ class YrWeatherGraphCard extends HTMLElement {
     const graph = this._loading
       ? `<div class="loading"><div class="spinner"></div><span>Pobieranie danych…</span></div>`
       : this._data?.length > 0
-        ? buildGraph(this._data)
+        ? buildGraph(this._data, gt)
         : `<div class="error">⚠ Błąd pobierania z api.met.no</div>`;
 
     const detail = (!this._loading && this._data?.length > 0) ? `
@@ -434,31 +494,25 @@ class YrWeatherGraphCard extends HTMLElement {
         ${buildDailyDetail(this._data, this._expandedDays)}
       </div>` : '';
 
-    sh.innerHTML = `<style>${BASE_CSS}</style>
+    sh.innerHTML = `
+<style>:host{${THEME_VARS[theme]}}</style>
+<style>${BASE_CSS}</style>
 <div class="card">
   ${header}
   <div class="graph-wrap">${graph}</div>
   ${detail}
   <div class="footer">
     <span>Dane: <a href="https://api.met.no/" target="_blank">api.met.no</a></span>
-    <span>
-      Akt.: ${fetchTime}
-      <button class="icon-btn" id="refresh-btn" title="Odśwież">⟳</button>
-    </span>
+    <span>Akt.: ${fetchTime} <button class="icon-btn" id="refresh-btn" title="Odśwież">⟳</button></span>
   </div>
 </div>`;
 
     sh.getElementById('refresh-btn')?.addEventListener('click', () => this._fetchData());
-
-    // Toggle rozwijania dni
     sh.querySelectorAll('.d-head').forEach(el => {
       el.addEventListener('click', () => {
         const idx = parseInt(el.dataset.day);
-        if (this._expandedDays.has(idx)) {
-          this._expandedDays.delete(idx);
-        } else {
-          this._expandedDays.add(idx);
-        }
+        if (this._expandedDays.has(idx)) this._expandedDays.delete(idx);
+        else this._expandedDays.add(idx);
         this._render();
       });
     });
@@ -466,12 +520,8 @@ class YrWeatherGraphCard extends HTMLElement {
 
   getCardSize() { return 9; }
 
-  static getConfigElement() {
-    return document.createElement('yr-weather-graph-card-editor');
-  }
-  static getStubConfig() {
-    return { location_name:'Brzeziny', lat:51.8018, lon:19.7515, hours:72 };
-  }
+  static getConfigElement() { return document.createElement('yr-weather-graph-card-editor'); }
+  static getStubConfig()    { return { location_name:'Brzeziny', lat:51.8018, lon:19.7515, hours:72, theme:'dark' }; }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -481,17 +531,14 @@ class YrWeatherGraphCardEditor extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode:'open' });
-    this._config     = {};
-    this._searching  = false;
-    this._results    = [];
-    this._searchErr  = '';
-    this._debounce   = null;
+    this._config    = {};
+    this._searching = false;
+    this._results   = [];
+    this._searchErr = '';
+    this._debounce  = null;
   }
 
-  setConfig(cfg) {
-    this._config = { ...cfg };
-    this._render();
-  }
+  setConfig(cfg) { this._config = { ...cfg }; this._render(); }
 
   _fire(cfg) {
     this.dispatchEvent(new CustomEvent('config-changed', {
@@ -501,58 +548,48 @@ class YrWeatherGraphCardEditor extends HTMLElement {
 
   async _search(query) {
     if (!query || query.length < 2) { this._results = []; this._render(); return; }
-    this._searching = true;
-    this._searchErr = '';
-    this._render();
+    this._searching = true; this._searchErr = ''; this._render();
     try {
-      const url = `${NOMINATIM_API}?q=${encodeURIComponent(query)}&format=json&limit=6&addressdetails=1`;
-      const r = await fetch(url, { headers:{ 'Accept-Language':'pl', 'User-Agent': UA } });
+      const r = await fetch(
+        `${NOMINATIM_API}?q=${encodeURIComponent(query)}&format=json&limit=6&addressdetails=1`,
+        { headers:{ 'Accept-Language':'pl', 'User-Agent': UA } });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       this._results = data.map(item => ({
         name:  item.display_name,
-        short: [item.address?.city || item.address?.town || item.address?.village || item.address?.county, item.address?.country].filter(Boolean).join(', '),
+        short: [item.address?.city||item.address?.town||item.address?.village||item.address?.county, item.address?.country].filter(Boolean).join(', '),
         lat:   parseFloat(item.lat),
         lon:   parseFloat(item.lon),
       }));
-      if (this._results.length === 0) this._searchErr = 'Brak wyników – spróbuj innej nazwy.';
-    } catch(e) {
-      this._searchErr = 'Błąd połączenia z Nominatim.';
-    } finally {
-      this._searching = false;
-      this._render();
-    }
+      if (!this._results.length) this._searchErr = 'Brak wyników – spróbuj innej nazwy.';
+    } catch { this._searchErr = 'Błąd połączenia z Nominatim.'; }
+    finally { this._searching = false; this._render(); }
   }
 
   _selectResult(r) {
-    this._config = {
-      ...this._config,
+    this._config = { ...this._config,
       location_name: r.short || r.name,
       lat: Math.round(r.lat * 10000) / 10000,
       lon: Math.round(r.lon * 10000) / 10000,
     };
-    this._results   = [];
-    this._searchErr = '';
-    this._fire(this._config);
-    this._render();
+    this._results = []; this._searchErr = '';
+    this._fire(this._config); this._render();
   }
 
-  _onChange(key, value) {
-    this._config = { ...this._config, [key]: value };
-    this._fire(this._config);
-  }
+  _onChange(key, value) { this._config = { ...this._config, [key]: value }; this._fire(this._config); }
 
   _render() {
     const sh  = this.shadowRoot;
     const cfg = this._config;
+    const isDark = (cfg.theme || 'dark') === 'dark';
 
     sh.innerHTML = `
 <style>
   :host { display:block; font-family:'Segoe UI',system-ui,sans-serif; padding:4px; }
   * { box-sizing:border-box; }
   .section { margin-bottom:18px; }
-  .label  { font-size:.78em; color:#94a3b8; margin-bottom:4px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; }
-  .row    { display:flex; gap:8px; align-items:stretch; }
+  .label { font-size:.78em; color:#94a3b8; margin-bottom:4px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; }
+  .row   { display:flex; gap:8px; align-items:stretch; }
   input, select {
     width:100%; padding:8px 10px; border-radius:8px;
     border:1px solid rgba(255,255,255,.12);
@@ -567,24 +604,21 @@ class YrWeatherGraphCardEditor extends HTMLElement {
     background:#3b82f6; color:#fff; font-size:.88em; font-weight:600;
     white-space:nowrap; transition:background .15s;
   }
-  .search-btn:hover  { background:#2563eb; }
+  .search-btn:hover { background:#2563eb; }
   .search-btn:disabled { background:#1e3a5f; color:#64748b; cursor:default; }
   .results { margin-top:6px; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,.1); }
-  .result-item {
-    padding:8px 12px; cursor:pointer;
-    border-bottom:1px solid rgba(255,255,255,.06); transition:background .1s;
-  }
+  .result-item { padding:8px 12px; cursor:pointer; border-bottom:1px solid rgba(255,255,255,.06); transition:background .1s; }
   .result-item:last-child { border-bottom:none; }
   .result-item:hover { background:rgba(59,130,246,.2); }
-  .result-name  { font-size:.85em; color:#e2e8f0; font-weight:600; }
-  .result-full  { font-size:.72em; color:#64748b; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .result-coords{ font-size:.7em; color:#3b82f6; margin-top:1px; }
+  .result-name   { font-size:.85em; color:#e2e8f0; font-weight:600; }
+  .result-full   { font-size:.72em; color:#64748b; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .result-coords { font-size:.7em; color:#3b82f6; margin-top:1px; }
   .current-loc {
     display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px;
     background:rgba(59,130,246,.1); border:1px solid rgba(59,130,246,.25); margin-bottom:6px;
   }
-  .loc-pin   { font-size:1.4em; }
-  .loc-name  { font-size:.9em; font-weight:700; color:#93c5fd; }
+  .loc-pin { font-size:1.4em; }
+  .loc-name { font-size:.9em; font-weight:700; color:#93c5fd; }
   .loc-coord { font-size:.72em; color:#64748b; margin-top:1px; }
   .spinner-sm { display:inline-block; width:14px; height:14px; border:2px solid #1e40af; border-top-color:#93c5fd; border-radius:50%; animation:spin .8s linear infinite; vertical-align:middle; margin-right:6px; }
   @keyframes spin { to { transform:rotate(360deg); } }
@@ -592,6 +626,18 @@ class YrWeatherGraphCardEditor extends HTMLElement {
   .hint { font-size:.72em; color:#64748b; margin-top:4px; }
   .divider { height:1px; background:rgba(255,255,255,.07); margin:16px 0; }
   .inline-fields { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+
+  /* Przełącznik motywu */
+  .theme-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .theme-btn {
+    padding:10px 8px; border-radius:8px; border:1px solid rgba(255,255,255,.1);
+    background:rgba(255,255,255,.04); color:#64748b; cursor:pointer;
+    font-size:.85em; font-weight:600; text-align:center; transition:all .15s;
+  }
+  .theme-btn:hover { background:rgba(255,255,255,.08); color:#94a3b8; }
+  .theme-btn.active {
+    background:rgba(59,130,246,.2); border-color:rgba(59,130,246,.5); color:#93c5fd;
+  }
 </style>
 
 <div class="section">
@@ -615,7 +661,7 @@ class YrWeatherGraphCardEditor extends HTMLElement {
   </div>
   <div class="hint">Wyszukiwanie przez OpenStreetMap Nominatim – działa globalnie.</div>
   ${this._searchErr ? `<div class="err">⚠ ${this._searchErr}</div>` : ''}
-  ${this._results.length > 0 ? `
+  ${this._results.length ? `
     <div class="results">
       ${this._results.map((r,i) => `
         <div class="result-item" data-idx="${i}">
@@ -627,6 +673,14 @@ class YrWeatherGraphCardEditor extends HTMLElement {
 </div>
 
 <div class="divider"></div>
+
+<div class="section">
+  <div class="label">🎨 Motyw karty</div>
+  <div class="theme-row">
+    <button class="theme-btn${isDark ? ' active' : ''}" data-theme="dark">🌙 Ciemny</button>
+    <button class="theme-btn${!isDark ? ' active' : ''}" data-theme="light">☀️ Jasny</button>
+  </div>
+</div>
 
 <div class="section">
   <div class="label">⚙️ Ustawienia zaawansowane</div>
@@ -659,6 +713,7 @@ class YrWeatherGraphCardEditor extends HTMLElement {
   </div>
 </div>`;
 
+    // Zdarzenia wyszukiwarki
     const input = sh.getElementById('search-input');
     const btn   = sh.getElementById('search-btn');
     const doSearch = () => this._search(input.value.trim());
@@ -666,14 +721,17 @@ class YrWeatherGraphCardEditor extends HTMLElement {
     input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
     input.addEventListener('input', () => {
       clearTimeout(this._debounce);
-      if (input.value.length > 2)
-        this._debounce = setTimeout(doSearch, 600);
-      else
-        { this._results = []; this._searchErr = ''; this._render(); }
+      if (input.value.length > 2) this._debounce = setTimeout(doSearch, 600);
+      else { this._results = []; this._searchErr = ''; this._render(); }
     });
-    sh.querySelectorAll('.result-item').forEach(el => {
-      el.addEventListener('click', () => this._selectResult(this._results[+el.dataset.idx]));
-    });
+    sh.querySelectorAll('.result-item').forEach(el =>
+      el.addEventListener('click', () => this._selectResult(this._results[+el.dataset.idx])));
+
+    // Przełącznik motywu
+    sh.querySelectorAll('.theme-btn').forEach(el =>
+      el.addEventListener('click', () => this._onChange('theme', el.dataset.theme)));
+
+    // Pola zaawansowane
     sh.getElementById('loc-name').addEventListener('change', e => this._onChange('location_name', e.target.value));
     sh.getElementById('lat').addEventListener('change',      e => this._onChange('lat', parseFloat(e.target.value)));
     sh.getElementById('lon').addEventListener('change',      e => this._onChange('lon', parseFloat(e.target.value)));
@@ -692,6 +750,6 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type:        'yr-weather-graph-card',
   name:        'Yr Weather Graph',
-  description: 'Graf pogodowy z met.no — temperatura, opady, ikony. Szczegółowy podział na dni i godziny.',
+  description: 'Graf pogodowy z met.no — temperatura, opady, szczegóły godzinowe. Motyw ciemny i jasny.',
   preview:     false,
 });
