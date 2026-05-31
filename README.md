@@ -6,6 +6,8 @@
 
 Karta Lovelace dla Home Assistant wyświetlająca wykres pogodowy na podstawie danych z [api.met.no](https://api.met.no/) (Norwegski Instytut Meteorologiczny). Nie wymaga żadnego klucza API.
 
+![Screenshot](screenshot.svg)
+
 ## Funkcje
 
 - Wykres temperatury i opadów (SVG, responsywny)
