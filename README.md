@@ -1,7 +1,7 @@
 # Yr Weather Graph Card
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![GitHub Release](https://img.shields.io/github/release/kamiljaworsk/yr-weather-graph-card.svg)](https://github.com/kamiljaworsk/yr-weather-graph-card/releases)
+[![GitHub Release](https://img.shields.io/github/release/kamiljaworski88/yr-weather-graph-card.svg)](https://github.com/kamiljaworski88/yr-weather-graph-card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Karta Lovelace dla Home Assistant wyświetlająca wykres pogodowy na podstawie danych z [api.met.no](https://api.met.no/) (Norwegski Instytut Meteorologiczny). Nie wymaga żadnego klucza API.
@@ -21,13 +21,13 @@ Karta Lovelace dla Home Assistant wyświetlająca wykres pogodowy na podstawie d
 
 1. Otwórz HACS w Home Assistant.
 2. Kliknij menu ⋮ → **Repozytoria niestandardowe**.
-3. Wpisz `https://github.com/kamiljaworsk/yr-weather-graph-card` i wybierz kategorię **Lovelace**.
+3. Wpisz `https://github.com/kamiljaworski88/yr-weather-graph-card` i wybierz kategorię **Lovelace**.
 4. Wyszukaj **Yr Weather Graph Card** i kliknij **Pobierz**.
 5. Przeładuj stronę przeglądarki.
 
 ## Instalacja ręczna
 
-1. Pobierz `yr-weather-graph-card.js` z [najnowszego wydania](https://github.com/kamiljaworsk/yr-weather-graph-card/releases/latest).
+1. Pobierz `yr-weather-graph-card.js` z [najnowszego wydania](https://github.com/kamiljaworski88/yr-weather-graph-card/releases/latest).
 2. Skopiuj plik do `/config/www/yr-weather-graph-card.js`.
 3. W Home Assistant przejdź do **Ustawienia → Pulpity nawigacyjne → Zasoby** i dodaj:
    - URL: `/local/yr-weather-graph-card.js`
@@ -62,4 +62,4 @@ refresh_interval: 1800
 
 ## Licencja
 
-MIT © [kamiljaworsk](https://github.com/kamiljaworsk)
+MIT © [kamiljaworski88](https://github.com/kamiljaworski88)
