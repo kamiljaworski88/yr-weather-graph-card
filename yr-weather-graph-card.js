@@ -1,5 +1,5 @@
 /**
- * yr-weather-graph-card  v2.0
+ * yr-weather-graph-card  v2.1
  * Custom Lovelace card dla Home Assistant
  * Dane pogodowe : api.met.no Locationforecast 2.0
  * Geocoding     : Nominatim (OpenStreetMap) – bez klucza API
@@ -10,12 +10,10 @@
  *   3. Karta YAML:
  *        type: custom:yr-weather-graph-card
  *        location_name: "Brzeziny"
- *        lat: 51.80
- *        lon: 19.75
+ *        lat: 51.8018
+ *        lon: 19.7515
  *        hours: 72
  *        refresh_interval: 1800
- *
- *   Alternatywnie – użyj visual editora (GUI) w HA dashboard.
  */
 
 // ═══════════════════════════════════════════════════════════
@@ -23,7 +21,7 @@
 // ═══════════════════════════════════════════════════════════
 const MET_API       = 'https://api.met.no/weatherapi/locationforecast/2.0/compact';
 const NOMINATIM_API = 'https://nominatim.openstreetmap.org/search';
-const UA            = 'HomeAssistant/YrWeatherGraphCard/2.0';
+const UA            = 'HomeAssistant/YrWeatherGraphCard/2.1';
 
 const SYMBOL_MAP = {
   clearsky:'☀️', fair:'🌤️', partlycloudy:'⛅', cloudy:'☁️', fog:'🌫️',
@@ -133,6 +131,93 @@ function buildGraph(hourlyData) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// PODZIAŁ DZIENNY / GODZINOWY
+// ═══════════════════════════════════════════════════════════
+function buildDailyDetail(hourlyData, expandedDays) {
+  // Grupuj dane po dniach
+  const days = [];
+  let curKey = null;
+  for (const d of hourlyData) {
+    const key = d.time.toDateString();
+    if (key !== curKey) {
+      days.push({ date: d.time, hours: [] });
+      curKey = key;
+    }
+    days[days.length - 1].hours.push(d);
+  }
+
+  // Skala słupków opadu: 10 mm = pełny słupek
+  const BAR_MAX = 10;
+
+  return days.map((day, dayIdx) => {
+    const temps    = day.hours.map(h => h.temp).filter(t => t != null);
+    const tMin     = Math.min(...temps);
+    const tMax     = Math.max(...temps);
+    const totalRain = day.hours.reduce((s, h) => s + (h.precip || 0), 0);
+    const rainHours = day.hours.filter(h => h.precip > 0).length;
+    const hasRain  = totalRain > 0;
+
+    // Dominujący symbol pogodowy
+    const symCount = {};
+    for (const h of day.hours) if (h.symbol) symCount[h.symbol] = (symCount[h.symbol] || 0) + 1;
+    const mainSym = Object.keys(symCount).sort((a,b) => symCount[b]-symCount[a])[0] ?? null;
+
+    const isToday  = day.date.toDateString() === new Date().toDateString();
+    const dateStr  = day.date.toLocaleDateString('pl-PL', { weekday:'long', day:'numeric', month:'short' });
+    const isOpen   = expandedDays.has(dayIdx);
+
+    // Nagłówek dnia
+    const rainSummary = hasRain
+      ? `<span class="d-rain">${totalRain.toFixed(1)} mm · ${rainHours}h</span>`
+      : `<span class="d-dry">bez opadów</span>`;
+
+    const header = `
+      <div class="d-head${hasRain ? ' d-head--rain' : ''}" data-day="${dayIdx}">
+        <span class="d-chevron${isOpen ? ' open' : ''}">▶</span>
+        <span class="d-icon">${symEmoji(mainSym)}</span>
+        <div class="d-info">
+          <span class="d-name">${isToday ? '<b>Dziś</b>, ' : ''}${dateStr}</span>
+          <div class="d-meta">
+            <span class="d-temps"><span class="tmax">${Math.round(tMax)}°</span> / <span class="tmin">${Math.round(tMin)}°</span></span>
+            ${rainSummary}
+          </div>
+        </div>
+        ${hasRain ? `<span class="d-rain-badge">🌧</span>` : ''}
+      </div>`;
+
+    // Wiersze godzinowe
+    const hourRows = isOpen ? day.hours.map(h => {
+      const timeStr  = `${String(h.time.getHours()).padStart(2,'0')}:00`;
+      const barPct   = Math.min(100, ((h.precip || 0) / BAR_MAX) * 100).toFixed(1);
+      const isHeavy  = h.precip >= 5;
+      const isRainy  = h.precip > 0;
+      const rowClass = isHeavy ? 'h-row heavy' : isRainy ? 'h-row rainy' : 'h-row';
+      const windStr  = h.wind != null ? `${h.wind.toFixed(1)} <small>${windDir(h.windDir)}</small>` : '—';
+      const humStr   = h.humidity != null ? `${Math.round(h.humidity)}%` : '';
+
+      const rainCell = isRainy
+        ? `<div class="rain-cell">
+             <div class="rain-bar-bg"><div class="rain-bar-fill${isHeavy?' heavy':''}" style="width:${barPct}%"></div></div>
+             <span class="rain-val">${h.precip.toFixed(1)}<small> mm</small></span>
+           </div>`
+        : `<div class="rain-cell"><span class="rain-empty">—</span></div>`;
+
+      return `
+        <div class="${rowClass}">
+          <span class="h-time">${timeStr}</span>
+          <span class="h-icon">${symEmoji(h.symbol)}</span>
+          <span class="h-temp">${Math.round(h.temp)}°</span>
+          ${rainCell}
+          <span class="h-wind">💨 ${windStr}</span>
+          ${humStr ? `<span class="h-hum">💧${humStr}</span>` : '<span></span>'}
+        </div>`;
+    }).join('') : '';
+
+    return `<div class="d-group">${header}${isOpen ? `<div class="d-body">${hourRows}</div>` : ''}</div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
 // SHARED CSS
 // ═══════════════════════════════════════════════════════════
 const BASE_CSS = `
@@ -157,9 +242,69 @@ const BASE_CSS = `
   .deg        { font-size:.55em; font-weight:400; vertical-align:super; }
   .meta-row   { display:flex; gap:10px; justify-content:flex-end; font-size:.75em; color:#93c5fd; margin-top:3px; flex-wrap:wrap; }
   .graph-wrap { padding:6px 8px 2px; }
+
+  /* ── Sekcja dzienna ── */
+  .detail-section { padding:4px 8px 10px; }
+  .detail-title {
+    font-size:.65em; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
+    color:#475569; padding:6px 4px 4px; border-bottom:1px solid rgba(255,255,255,.05);
+    margin-bottom:6px;
+  }
+  .d-group { margin-bottom:4px; border-radius:10px; overflow:hidden; border:1px solid rgba(255,255,255,.06); }
+
+  /* Nagłówek dnia */
+  .d-head {
+    display:flex; align-items:center; gap:10px;
+    padding:9px 14px; cursor:pointer; user-select:none;
+    background:rgba(255,255,255,.025); transition:background .15s;
+  }
+  .d-head:hover { background:rgba(255,255,255,.055); }
+  .d-head--rain { border-left:3px solid rgba(99,179,237,.7); }
+  .d-chevron { font-size:.6em; color:#475569; transition:transform .2s; display:inline-block; width:10px; }
+  .d-chevron.open { transform:rotate(90deg); }
+  .d-icon  { font-size:1.4em; }
+  .d-info  { flex:1; min-width:0; }
+  .d-name  { font-size:.85em; color:#f1f5f9; }
+  .d-meta  { display:flex; gap:12px; flex-wrap:wrap; margin-top:1px; }
+  .d-temps { font-size:.78em; color:#94a3b8; }
+  .tmax    { color:#fde68a; font-weight:700; }
+  .tmin    { color:#93c5fd; }
+  .d-rain  { font-size:.78em; font-weight:700; color:#63b3ed; }
+  .d-dry   { font-size:.78em; color:#334155; }
+  .d-rain-badge { font-size:1.1em; margin-left:auto; }
+
+  /* Wiersze godzinowe */
+  .d-body { background:rgba(0,0,0,.15); }
+  .h-row {
+    display:grid;
+    grid-template-columns: 44px 26px 38px 1fr 90px 42px;
+    align-items:center; gap:6px;
+    padding:5px 14px;
+    border-top:1px solid rgba(255,255,255,.04);
+    font-size:.78em;
+  }
+  .h-row.rainy { background:rgba(59,130,246,.08); }
+  .h-row.heavy { background:rgba(59,130,246,.18); border-left:2px solid #3b82f6; }
+  .h-time { color:#475569; font-variant-numeric:tabular-nums; }
+  .h-icon { text-align:center; }
+  .h-temp { color:#fde68a; font-weight:700; text-align:right; }
+  .h-wind { color:#94a3b8; text-align:right; }
+  .h-wind small { font-size:.85em; }
+  .h-hum  { color:#7dd3fc; font-size:.82em; text-align:right; }
+
+  /* Komórka opadów */
+  .rain-cell   { display:flex; align-items:center; gap:6px; }
+  .rain-bar-bg { flex:1; height:5px; background:rgba(255,255,255,.07); border-radius:3px; overflow:hidden; min-width:30px; }
+  .rain-bar-fill       { height:100%; border-radius:3px; background:linear-gradient(90deg,#2563eb,#63b3ed); }
+  .rain-bar-fill.heavy { background:linear-gradient(90deg,#1d4ed8,#38bdf8); }
+  .rain-val   { color:#63b3ed; font-weight:700; white-space:nowrap; min-width:42px; text-align:right; }
+  .rain-val small { font-weight:400; color:#3b82f6; }
+  .rain-empty { color:rgba(148,163,184,.3); min-width:42px; text-align:right; }
+
   .footer {
     padding:4px 14px 8px; font-size:.65em; color:rgba(148,163,184,.6);
     display:flex; justify-content:space-between; align-items:center;
+    border-top:1px solid rgba(255,255,255,.05);
   }
   .footer a   { color:rgba(99,179,237,.7); text-decoration:none; }
   .loading    { display:flex; align-items:center; justify-content:center; gap:10px; height:160px; color:#64748b; font-size:.85em; }
@@ -177,17 +322,18 @@ class YrWeatherGraphCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode:'open' });
-    this._config  = {};
-    this._data    = null;
-    this._loading = false;
-    this._lastFetch = 0;
-    this._timer   = null;
+    this._config       = {};
+    this._data         = null;
+    this._loading      = false;
+    this._lastFetch    = 0;
+    this._timer        = null;
+    this._expandedDays = new Set([0]); // dziś domyślnie rozwinięty
   }
 
   setConfig(cfg) {
     this._config = {
-      lat:              cfg.lat              ?? 51.80,
-      lon:              cfg.lon              ?? 19.75,
+      lat:              cfg.lat              ?? 51.8018,
+      lon:              cfg.lon              ?? 19.7515,
       location_name:    cfg.location_name    ?? 'Brzeziny',
       hours:            Math.min(cfg.hours   ?? 72, 90),
       refresh_interval: cfg.refresh_interval ?? 1800,
@@ -282,10 +428,17 @@ class YrWeatherGraphCard extends HTMLElement {
         ? buildGraph(this._data)
         : `<div class="error">⚠ Błąd pobierania z api.met.no</div>`;
 
+    const detail = (!this._loading && this._data?.length > 0) ? `
+      <div class="detail-section">
+        <div class="detail-title">Szczegółowa prognoza — kliknij dzień aby rozwinąć</div>
+        ${buildDailyDetail(this._data, this._expandedDays)}
+      </div>` : '';
+
     sh.innerHTML = `<style>${BASE_CSS}</style>
 <div class="card">
   ${header}
   <div class="graph-wrap">${graph}</div>
+  ${detail}
   <div class="footer">
     <span>Dane: <a href="https://api.met.no/" target="_blank">api.met.no</a></span>
     <span>
@@ -296,15 +449,28 @@ class YrWeatherGraphCard extends HTMLElement {
 </div>`;
 
     sh.getElementById('refresh-btn')?.addEventListener('click', () => this._fetchData());
+
+    // Toggle rozwijania dni
+    sh.querySelectorAll('.d-head').forEach(el => {
+      el.addEventListener('click', () => {
+        const idx = parseInt(el.dataset.day);
+        if (this._expandedDays.has(idx)) {
+          this._expandedDays.delete(idx);
+        } else {
+          this._expandedDays.add(idx);
+        }
+        this._render();
+      });
+    });
   }
 
-  getCardSize() { return 5; }
+  getCardSize() { return 9; }
 
   static getConfigElement() {
     return document.createElement('yr-weather-graph-card-editor');
   }
   static getStubConfig() {
-    return { location_name:'Brzeziny', lat:51.80, lon:19.75, hours:72 };
+    return { location_name:'Brzeziny', lat:51.8018, lon:19.7515, hours:72 };
   }
 }
 
@@ -327,14 +493,12 @@ class YrWeatherGraphCardEditor extends HTMLElement {
     this._render();
   }
 
-  // HA wymaga tego eventu żeby zapisać konfigurację
   _fire(cfg) {
     this.dispatchEvent(new CustomEvent('config-changed', {
       detail: { config: cfg }, bubbles: true, composed: true
     }));
   }
 
-  // Geocoding przez Nominatim
   async _search(query) {
     if (!query || query.length < 2) { this._results = []; this._render(); return; }
     this._searching = true;
@@ -346,10 +510,10 @@ class YrWeatherGraphCardEditor extends HTMLElement {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       this._results = data.map(item => ({
-        name:        item.display_name,
-        short:       [item.address?.city || item.address?.town || item.address?.village || item.address?.county, item.address?.country].filter(Boolean).join(', '),
-        lat:         parseFloat(item.lat),
-        lon:         parseFloat(item.lon),
+        name:  item.display_name,
+        short: [item.address?.city || item.address?.town || item.address?.village || item.address?.county, item.address?.country].filter(Boolean).join(', '),
+        lat:   parseFloat(item.lat),
+        lon:   parseFloat(item.lon),
       }));
       if (this._results.length === 0) this._searchErr = 'Brak wyników – spróbuj innej nazwy.';
     } catch(e) {
@@ -408,8 +572,7 @@ class YrWeatherGraphCardEditor extends HTMLElement {
   .results { margin-top:6px; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,.1); }
   .result-item {
     padding:8px 12px; cursor:pointer;
-    border-bottom:1px solid rgba(255,255,255,.06);
-    transition:background .1s;
+    border-bottom:1px solid rgba(255,255,255,.06); transition:background .1s;
   }
   .result-item:last-child { border-bottom:none; }
   .result-item:hover { background:rgba(59,130,246,.2); }
@@ -417,22 +580,17 @@ class YrWeatherGraphCardEditor extends HTMLElement {
   .result-full  { font-size:.72em; color:#64748b; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .result-coords{ font-size:.7em; color:#3b82f6; margin-top:1px; }
   .current-loc {
-    display:flex; align-items:center; gap:10px;
-    padding:10px 12px; border-radius:8px;
-    background:rgba(59,130,246,.1); border:1px solid rgba(59,130,246,.25);
-    margin-bottom:6px;
+    display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px;
+    background:rgba(59,130,246,.1); border:1px solid rgba(59,130,246,.25); margin-bottom:6px;
   }
   .loc-pin   { font-size:1.4em; }
   .loc-name  { font-size:.9em; font-weight:700; color:#93c5fd; }
   .loc-coord { font-size:.72em; color:#64748b; margin-top:1px; }
   .spinner-sm { display:inline-block; width:14px; height:14px; border:2px solid #1e40af; border-top-color:#93c5fd; border-radius:50%; animation:spin .8s linear infinite; vertical-align:middle; margin-right:6px; }
   @keyframes spin { to { transform:rotate(360deg); } }
-  .err { font-size:.78em; color:#f87171; padding:6px; }
+  .err  { font-size:.78em; color:#f87171; padding:6px; }
   .hint { font-size:.72em; color:#64748b; margin-top:4px; }
   .divider { height:1px; background:rgba(255,255,255,.07); margin:16px 0; }
-  .advanced-toggle { font-size:.75em; color:#64748b; cursor:pointer; user-select:none; }
-  .advanced-toggle:hover { color:#94a3b8; }
-  .advanced { padding-top:12px; }
   .inline-fields { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 </style>
 
@@ -442,9 +600,7 @@ class YrWeatherGraphCardEditor extends HTMLElement {
     <span class="loc-pin">🌍</span>
     <div>
       <div class="loc-name">${cfg.location_name || '(nie ustawiono)'}</div>
-      <div class="loc-coord">
-        ${cfg.lat != null ? `${cfg.lat}°N, ${cfg.lon}°E` : 'Brak współrzędnych'}
-      </div>
+      <div class="loc-coord">${cfg.lat != null ? `${cfg.lat}°N, ${cfg.lon}°E` : 'Brak współrzędnych'}</div>
     </div>
   </div>
 </div>
@@ -452,16 +608,13 @@ class YrWeatherGraphCardEditor extends HTMLElement {
 <div class="section">
   <div class="label">🔍 Wyszukaj miasto / miejscowość</div>
   <div class="row">
-    <input id="search-input" type="text" placeholder="np. Warszawa, Berlin, Paris…"
-      value="" autocomplete="off" spellcheck="false"/>
+    <input id="search-input" type="text" placeholder="np. Warszawa, Berlin, Paris…" value="" autocomplete="off" spellcheck="false"/>
     <button class="search-btn" id="search-btn" ${this._searching ? 'disabled' : ''}>
       ${this._searching ? '<span class="spinner-sm"></span>Szukam…' : 'Szukaj'}
     </button>
   </div>
   <div class="hint">Wyszukiwanie przez OpenStreetMap Nominatim – działa globalnie.</div>
-
   ${this._searchErr ? `<div class="err">⚠ ${this._searchErr}</div>` : ''}
-
   ${this._results.length > 0 ? `
     <div class="results">
       ${this._results.map((r,i) => `
@@ -469,10 +622,8 @@ class YrWeatherGraphCardEditor extends HTMLElement {
           <div class="result-name">${r.short || r.name.split(',')[0]}</div>
           <div class="result-full">${r.name}</div>
           <div class="result-coords">${r.lat.toFixed(4)}°N, ${r.lon.toFixed(4)}°E</div>
-        </div>
-      `).join('')}
-    </div>
-  ` : ''}
+        </div>`).join('')}
+    </div>` : ''}
 </div>
 
 <div class="divider"></div>
@@ -503,16 +654,13 @@ class YrWeatherGraphCardEditor extends HTMLElement {
     <div class="label">Odświeżanie</div>
     <select id="refresh">
       ${[[900,'15 minut'],[1800,'30 minut'],[3600,'1 godzina'],[7200,'2 godziny']].map(
-        ([v,l]) => `<option value="${v}" ${cfg.refresh_interval==v?'selected':''}>${l}</option>`
-      ).join('')}
+        ([v,l]) => `<option value="${v}" ${cfg.refresh_interval==v?'selected':''}>${l}</option>`).join('')}
     </select>
   </div>
 </div>`;
 
-    // Zdarzenia — wyszukiwarka
-    const input  = sh.getElementById('search-input');
-    const btn    = sh.getElementById('search-btn');
-
+    const input = sh.getElementById('search-input');
+    const btn   = sh.getElementById('search-btn');
     const doSearch = () => this._search(input.value.trim());
     btn.addEventListener('click', doSearch);
     input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
@@ -523,13 +671,9 @@ class YrWeatherGraphCardEditor extends HTMLElement {
       else
         { this._results = []; this._searchErr = ''; this._render(); }
     });
-
-    // Kliknięcie wyników
     sh.querySelectorAll('.result-item').forEach(el => {
       el.addEventListener('click', () => this._selectResult(this._results[+el.dataset.idx]));
     });
-
-    // Pola zaawansowane
     sh.getElementById('loc-name').addEventListener('change', e => this._onChange('location_name', e.target.value));
     sh.getElementById('lat').addEventListener('change',      e => this._onChange('lat', parseFloat(e.target.value)));
     sh.getElementById('lon').addEventListener('change',      e => this._onChange('lon', parseFloat(e.target.value)));
@@ -548,6 +692,6 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type:        'yr-weather-graph-card',
   name:        'Yr Weather Graph',
-  description: 'Graf pogodowy z met.no — temperatura, opady, ikony. Dowolna lokalizacja przez wyszukiwarkę.',
+  description: 'Graf pogodowy z met.no — temperatura, opady, ikony. Szczegółowy podział na dni i godziny.',
   preview:     false,
 });
